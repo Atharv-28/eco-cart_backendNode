@@ -13,20 +13,19 @@ const ai = new GoogleGenAI({ apiKey });
 
 app.post('/gemini-test', async (req, res) => {
     try {
-        const { title, brand, features, material } = req.body;
+        const { title, brand, material } = req.body;
         console.log('Request body:', req.body);
 
-        if (!title || !brand || !features || !material) {
-            return res.status(400).json({ error: 'Invalid request: All fields (title, brand, features, material) are required.' });
+        if (!title || !brand || !material) {
+            return res.status(400).json({ error: 'Invalid request: All fields (title, brand, material) are required.' });
         }
 
         // Construct the query
         const query = `
             Title: ${title}
             Brand: ${brand}
-            Features: ${features}
             Material: ${material}
-            Rate between 1-5 its eco-friendly ness based on brand ethics and material.
+            Rate between 1-5 its eco-friendly ness based on brand ethics and material and max one paragraph as description.
         `;
 
         const response = await ai.models.generateContent({
@@ -35,9 +34,6 @@ app.post('/gemini-test', async (req, res) => {
         });
 
         console.log('Response from Gemini API:', response.text);
-
-
-        console.log('Response DATA from Gemini API:', response.data);
 
         res.status(200).json({ response: response.text });
     } catch (error) {
