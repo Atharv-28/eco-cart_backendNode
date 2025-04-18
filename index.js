@@ -2,9 +2,11 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
 import axios from 'axios';
+import cors from 'cors';
 dotenv.config();
 
 const app = express();
+app.use(cors());
 const PORT = 3000;
 app.use(express.json()); // Middleware to parse JSON request bodies
 
@@ -35,7 +37,13 @@ app.post('/gemini-test', async (req, res) => {
 
         console.log('Response from Gemini API:', response.text);
 
-        res.status(200).json({ response: response.text });
+        // Split the response into rating and description
+        const responseText = response.text;
+        const ratingMatch = responseText.match(/Rating:\s*\d\/5/); // Extract "Rating: X/5"
+        const rating = ratingMatch ? ratingMatch[0] : null; // Get the rating
+        const description = responseText.replace(ratingMatch, '').trim(); // Remove the rating from the text
+
+        res.status(200).json({ rating, description });
     } catch (error) {
         console.error('Error calling Gemini API:', error);
         res.status(500).json({ error: 'Failed to call Gemini API' });
