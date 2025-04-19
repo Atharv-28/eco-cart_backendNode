@@ -18,16 +18,17 @@ app.post('/gemini-test', async (req, res) => {
         const { title, brand, material } = req.body;
         console.log('Request body:', req.body);
 
+        /*
         if (!title || !brand || !material) {
             return res.status(400).json({ error: 'Invalid request: All fields (title, brand, material) are required.' });
-        }
+        }*/
 
         // Construct the query
         const query = `
             Title: ${title}
             Brand: ${brand}
             Material: ${material}
-            Rate between 1-5 its eco-friendly ness based on brand ethics and material and max one paragraph as description.
+            Rate between 1-5 its eco-friendly ness based on brand ethics and material and max 4 lines as direct description. in format- rating: %d/5 & review: and all letters should be lowercase.
         `;
 
         const response = await ai.models.generateContent({
@@ -39,7 +40,9 @@ app.post('/gemini-test', async (req, res) => {
 
         // Split the response into rating and description
         const responseText = response.text;
-        const ratingMatch = responseText.match(/Rating:\s*\d\/5/); // Extract "Rating: X/5"
+        console.log('Response text:', responseText);
+        const ratingMatch = responseText.match(/rating:\s*\d\/5/i); // Extract "Rating: X/5" (case-insensitive)
+        console.log('Rating match:', ratingMatch);
         const rating = ratingMatch ? ratingMatch[0] : null; // Get the rating
         const description = responseText.replace(ratingMatch, '').trim(); // Remove the rating from the text
 
