@@ -53,43 +53,69 @@ app.post('/gemini-getRating', async (req, res) => {
 
 app.post('/gemini-ecoLens', async (req, res) => {
     try {
-        const { url } = req.body;
+        const { imageUrl } = req.body;
 
-        if (!url) {
-            return res.status(400).json({ error: 'URL parameter is required.' });
+        if (!imageUrl) {
+            return res.status(400).json({ error: 'Image URL is required.' });
         }
 
-        // Construct the query for Gemini
-        const query = `
-            Analyze the product details from the given URL: ${url}.
-            Provide the brand name, product name, and a short description of the product in lowercase.
-        `;
+        // Fetch the image from Cloudinary
+        const imageResponse = await fetch(imageUrl);
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const base64Image = Buffer.from(imageBuffer).toString('base64');
 
+        // Structured prompt for better analysis
+        const prompt = {
+            text: `Analyze this product image and identify:
+            1. Brand name (if visible)
+            2. Product name (primary identification)
+            3. Short description (focus on materials and environmental impact)
+            
+            Format your response as:
+            Brand: [brand name or "unavailable"]
+            Product: [product name]
+            Description: [2-3 sentence description in lowercase]`
+        };
+
+        // Gemini Vision API request
         const response = await ai.models.generateContent({
-            model: "gemini-2.0-flash",
-            contents: [query], // Ensure contents is passed as an array
+            model: "gemini-1.5-flash-002", // Use latest stable version
+            contents: [{
+                role: "user",
+                parts: [
+                    { text: prompt.text },
+                    {
+                        inlineData: {
+                            mimeType: "image/png", 
+                            data: base64Image
+                        }
+                    }
+                ]
+            }]
         });
-
         console.log('Response from Gemini API:', response.text);
+        
 
-        // Extract brand name, product name, and description from the response
+        // Parse the response
         const responseText = response.text;
-        const brandMatch = responseText.match(/brand name:\s*(.+?)(?=\n|$)/i); // Extract "brand: ..."
-        const productMatch = responseText.match(/product name:\s*(.+?)(?=\n|$)/i); // Extract "product: ..."
-        const detailsMatch = responseText.match(/description:\s*(.+?)(?=\n|$)/i); // Extract "details: ..."
+        const parsedResponse = {
+            brand: extractValue(responseText, 'Brand'),
+            product: extractValue(responseText, 'Product'),
+            details: extractValue(responseText, 'Description')
+        };
 
-        const brand = brandMatch ? brandMatch[1].trim() : null;
-        const product = productMatch ? productMatch[1].trim() : null;
-        const details = detailsMatch ? detailsMatch[1].trim() : null;
-
-        console.log('Brand:', brand);
-
-        res.status(200).json({ brand, product, details });
+        res.status(200).json(parsedResponse);
     } catch (error) {
-        console.error('Error calling Gemini API:', error);
-        res.status(500).json({ error: 'Failed to process the URL with Gemini API' });
+        console.error('Error:', error);
+        res.status(500).json({ error: 'Failed to analyze image' });
     }
 });
+
+function extractValue(text, field) {
+    const regex = new RegExp(`${field}:\\s*(.+?)(?=\\n|$)`, 'i');
+    const match = text.match(regex);
+    return match ? match[1].trim().toLowerCase() : 'unavailable';
+}
 
 app.post('/search-product', async (req, res) => {
     try {
@@ -102,20 +128,57 @@ app.post('/search-product', async (req, res) => {
         const apiKey = process.env.GOOGLE_API_KEY;
         const cx = process.env.GOOGLE_CX;
 
-        const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${apiKey}&cx=${cx}`;
+        const url = `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent("Eco-Friendly " + query)}&key=${apiKey}&cx=${cx}`;
 
         const response = await axios.get(url);
 
-        const products = response.data.items.map(item => ({
-            title: item.title,
-            link: item.link,
-            thumbnail: item.pagemap?.cse_thumbnail?.[0]?.src || null,
-        }));
+        const products = response.data.items
+      .slice(0, 3) // Get top 3 results
+      .map(item => ({ link: item.link })); // Directly map to links
 
-        res.status(200).json({ products });
+    res.status(200).json({ products });
     } catch (error) {
         console.error('Error fetching product data:', error);
         res.status(500).json({ error: 'Failed to fetch product data' });
+    }
+});
+
+app.post('/upload-Img', async (req, res) => {
+    try {
+        const { imageUrl } = req.body;
+
+        if (!imageUrl) {
+            return res.status(400).json({ error: 'Image URL is required.' });
+        }
+
+        // Construct the query for Gemini
+        const query = `
+            Analyze the product in the given image: ${imageUrl}.
+            Provide the product name, brand name, and categorize the product with a basic common name.
+            Format: product name: ..., brand name: ..., category: ...
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [query], // Ensure contents is passed as an array
+        });
+
+        console.log('Response from Gemini API:', response.text);
+
+        // Extract product name, brand name, and category from the response
+        const responseText = response.text;
+        const productMatch = responseText.match(/product name:\s*(.+?)(?=\n|$)/i); // Extract "product name: ..."
+        const brandMatch = responseText.match(/brand name:\s*(.+?)(?=\n|$)/i); // Extract "brand name: ..."
+        const categoryMatch = responseText.match(/category:\s*(.+?)(?=\n|$)/i); // Extract "category: ..."
+
+        const product = productMatch ? productMatch[1].trim() : null;
+        const brand = brandMatch ? brandMatch[1].trim() : null;
+        const category = categoryMatch ? categoryMatch[1].trim() : null;
+
+        res.status(200).json({ product, brand, category });
+    } catch (error) {
+        console.error('Error processing image with Gemini API:', error);
+        res.status(500).json({ error: 'Failed to process the image with Gemini API' });
     }
 });
 
