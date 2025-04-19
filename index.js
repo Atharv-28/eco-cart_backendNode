@@ -51,6 +51,40 @@ app.post('/gemini-getRating', async (req, res) => {
     }
 });
 
+app.post('/chatbot-getRating', async (req, res) => {
+    try {
+        const { query, productName, brand, material } = req.body;
+
+        if (!query || !productName || !brand || !material) {
+            return res.status(400).json({ error: 'Query, product name, brand, and material are required.' });
+        }
+
+        // Construct the query for Gemini with context
+        const geminiQuery = `
+            Product Name: ${productName}
+            Brand: ${brand}
+            Material: ${material}
+            User Question: ${query}
+            Respond as a helpful chatbot for an eco-friendly e-commerce platform, keeping the product details in mind.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [geminiQuery],
+        });
+
+        console.log('Response from Gemini API:', response.text);
+
+        // Extract the chatbot's response
+        const chatbotResponse = response.text.trim();
+
+        res.status(200).json({ response: chatbotResponse });
+    } catch (error) {
+        console.error('Error in chatbot-getRating:', error);
+        res.status(500).json({ error: 'Failed to process the chatbot query.' });
+    }
+});
+
 app.post('/gemini-ecoLens', async (req, res) => {
     try {
         const { imageUrl } = req.body;
@@ -179,6 +213,37 @@ app.post('/upload-Img', async (req, res) => {
     } catch (error) {
         console.error('Error processing image with Gemini API:', error);
         res.status(500).json({ error: 'Failed to process the image with Gemini API' });
+    }
+});
+
+app.post('/chatbot-general', async (req, res) => {
+    try {
+        const { message } = req.body;
+
+        if (!message) {
+            return res.status(400).json({ error: 'Message is required.' });
+        }
+
+        // Construct the query for Gemini
+        const query = `
+            User Message: ${message}
+            Respond as a helpful chatbot for an eco-friendly e-commerce platform.
+        `;
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: [query],
+        });
+
+        console.log('Response from Gemini API:', response.text);
+
+        // Extract the chatbot's response
+        const chatbotResponse = response.text.trim();
+
+        res.status(200).json({ response: chatbotResponse });
+    } catch (error) {
+        console.error('Error in chatbot-general:', error);
+        res.status(500).json({ error: 'Failed to process the chatbot query.' });
     }
 });
 
